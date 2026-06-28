@@ -1,0 +1,10 @@
+.git
+.idea
+*.code-workspace
+node_modules
+session
+*.session
+nbproject
+iobroker.*.tgz
+Thumbs.db
+.commitinfo

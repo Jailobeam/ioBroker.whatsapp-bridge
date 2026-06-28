@@ -1,0 +1,75 @@
+{
+  "common": {
+    "name": "whatsapp-bridge",
+    "version": "0.0.1",
+    "news": {
+      "0.0.1": {
+        "en": "Initial release with integrated WhatsApp Web session, QR login and direct sending",
+        "de": "Erste Version mit integrierter WhatsApp-Web-Session, QR-Login und direktem Versand"
+      }
+    },
+    "title": "WhatsApp Bridge",
+    "titleLang": {
+      "en": "WhatsApp Bridge",
+      "de": "WhatsApp Bridge"
+    },
+    "desc": {
+      "en": "Direct WhatsApp Web adapter with integrated QR login for ioBroker",
+      "de": "Direkter WhatsApp-Web-Adapter mit integriertem QR-Login fuer ioBroker"
+    },
+    "authors": [
+      "Jailobeam"
+    ],
+    "keywords": [
+      "whatsapp",
+      "notifications"
+    ],
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free"
+    },
+    "platform": "Javascript/Node.js",
+    "main": "main.js",
+    "icon": "whatsapp-bridge.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/Jailobeam/ioBroker.whatsapp-bridge/master/admin/whatsapp-bridge.png",
+    "readme": "https://github.com/Jailobeam/ioBroker.whatsapp-bridge/blob/master/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "messaging",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "tier": 1,
+    "messagebox": true,
+    "materialize": true,
+    "blockly": false,
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.19"
+      }
+    ]
+  },
+  "native": {
+    "defaultPhone": "",
+    "clientId": "main",
+    "sessionPath": "",
+    "chromiumPath": "",
+    "autoStart": true
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "sendMessage",
+      "type": "state",
+      "common": {
+        "name": "Send message",
+        "write": true,
+        "read": true,
+        "type": "string",
+        "role": "text"
+      },
+      "native": {}
+    }
+  ]
+}

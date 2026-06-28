@@ -1,0 +1,203 @@
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="../../css/adapter.css" />
+    <link rel="stylesheet" type="text/css" href="../../lib/css/materialize.css">
+
+    <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript" src="../../socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="../../js/translate.js"></script>
+    <script type="text/javascript" src="../../lib/js/materialize.js"></script>
+    <script type="text/javascript" src="../../js/adapter-settings.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <script type="text/javascript" src="words.js"></script>
+
+    <script type="text/javascript">
+        let refreshTimer = null;
+
+        function adapterNamespace() {
+            const adapterName = typeof adapter === 'string' && adapter ? adapter : 'whatsapp-bridge';
+            const instanceId = String(instance || '0');
+            return instanceId.includes('.') ? instanceId : `${adapterName}.${instanceId}`;
+        }
+
+        function getStateValue(stateId, callback) {
+            socket.emit('getState', `${adapterNamespace()}.${stateId}`, function (_err, state) {
+                callback(state && state.val != null ? state.val : '');
+            });
+        }
+
+        function setCommand(stateId, value, successMessage) {
+            socket.emit('setState', `${adapterNamespace()}.${stateId}`, { val: value, ack: false }, function () {
+                $('#actionResult').text(successMessage || '');
+                window.setTimeout(refreshRuntimeStatus, 800);
+            });
+        }
+
+        function renderQr(status, qrSvg) {
+            const target = $('#qrContainer');
+            if (status === 'ready') {
+                target.html('<p>WhatsApp ist verbunden. Es wird aktuell kein QR-Code angezeigt.</p>');
+                return;
+            }
+            if (qrSvg) {
+                target.html(qrSvg);
+                return;
+            }
+            target.html('<p>Der Adapter initialisiert gerade die WhatsApp-Session oder erzeugt einen neuen QR-Code.</p>');
+        }
+
+        function refreshRuntimeStatus() {
+            const values = {};
+            const stateIds = [
+                'status.state',
+                'status.account',
+                'status.lastError',
+                'status.lastReadyAt',
+                'status.lastEventAt',
+                'status.qrSvg',
+            ];
+
+            let pending = stateIds.length;
+            stateIds.forEach(id => {
+                getStateValue(id, value => {
+                    values[id] = value;
+                    pending--;
+                    if (pending === 0) {
+                        $('#waState').text(values['status.state'] || '-');
+                        $('#waAccount').text(values['status.account'] || '-');
+                        $('#waReady').text(values['status.lastReadyAt'] || '-');
+                        $('#waEvent').text(values['status.lastEventAt'] || '-');
+                        $('#waError').text(values['status.lastError'] || '-');
+                        renderQr(values['status.state'], values['status.qrSvg']);
+                    }
+                });
+            });
+        }
+
+        function load(settings, onChange) {
+            if (!settings) {
+                return;
+            }
+
+            $('.value').each(function () {
+                const $field = $(this);
+                const id = $field.attr('id');
+                if ($field.attr('type') === 'checkbox') {
+                    $field.prop('checked', settings[id]).on('change', () => onChange());
+                } else {
+                    $field.val(settings[id]).on('change', () => onChange()).on('keyup', () => onChange());
+                }
+            });
+
+            $('#logoutButton').on('click', function () {
+                if (window.confirm('Wirklich WhatsApp abmelden und die Session loeschen?')) {
+                    setCommand('control.logout', true, 'Logout wurde an den Adapter gesendet.');
+                }
+            });
+
+            $('#restartButton').on('click', function () {
+                setCommand('control.reinitialize', true, 'Neustart wurde an den Adapter gesendet.');
+            });
+
+            refreshRuntimeStatus();
+            refreshTimer = window.setInterval(refreshRuntimeStatus, 5000);
+            onChange(false);
+            M && M.updateTextFields();
+        }
+
+        function save(callback) {
+            const obj = {};
+            $('.value').each(function () {
+                const $field = $(this);
+                const id = $field.attr('id');
+                if ($field.attr('type') === 'checkbox') {
+                    obj[id] = $field.prop('checked');
+                } else {
+                    obj[id] = $field.val();
+                }
+            });
+            callback(obj);
+        }
+    </script>
+</head>
+<body>
+    <div class="m adapter-container">
+        <div class="row">
+            <div class="col s12 m4 l2">
+                <img src="whatsapp-bridge.png" class="logo">
+            </div>
+            <div class="col s12 m8 l10">
+                <h4>WhatsApp Bridge</h4>
+                <p>Dieser Adapter verbindet ioBroker direkt mit einer WhatsApp-Web-Session. Es gibt keinen separaten Bridge-Server mehr.</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col l4 m6 s12 input-field">
+                <input class="value" type="text" id="defaultPhone" />
+                <label for="defaultPhone">Standard-Zielnummer</label>
+            </div>
+            <div class="col l4 m6 s12 input-field">
+                <input class="value" type="text" id="clientId" />
+                <label for="clientId">Client-ID</label>
+            </div>
+            <div class="col l4 m6 s12 input-field">
+                <input class="value" type="text" id="sessionPath" />
+                <label for="sessionPath">Session-Pfad (optional)</label>
+            </div>
+            <div class="col l4 m6 s12 input-field">
+                <input class="value" type="text" id="chromiumPath" />
+                <label for="chromiumPath">Chromium/Puppeteer-Pfad (optional)</label>
+            </div>
+            <div class="col l4 m6 s12 input-field checkbox-field">
+                <label>
+                    <input class="value" type="checkbox" id="autoStart" />
+                    <span>WhatsApp beim Adapterstart automatisch verbinden</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col s12 l6">
+                <div class="card-panel runtime-panel">
+                    <h5>Live-Status</h5>
+                    <p><strong>Status:</strong> <span id="waState">-</span></p>
+                    <p><strong>Account:</strong> <span id="waAccount">-</span></p>
+                    <p><strong>Letztes Ready:</strong> <span id="waReady">-</span></p>
+                    <p><strong>Letztes Event:</strong> <span id="waEvent">-</span></p>
+                    <p><strong>Letzter Fehler:</strong> <span id="waError">-</span></p>
+                    <div class="action-row">
+                        <a class="waves-effect waves-light btn" id="restartButton">QR / Client neu starten</a>
+                        <a class="waves-effect waves-light btn red" id="logoutButton">WhatsApp abmelden</a>
+                    </div>
+                    <p id="actionResult" class="action-result"></p>
+                </div>
+            </div>
+            <div class="col s12 l6">
+                <div class="card-panel runtime-panel">
+                    <h5>QR-Code</h5>
+                    <div id="qrContainer" class="qr-container">
+                        <p>QR-Code wird geladen...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col s12">
+                <div class="card-panel runtime-panel">
+                    <h5>Verwendung</h5>
+                    <ul class="browser-default">
+                        <li>Nach dem Speichern der Instanz erzeugt der Adapter selbststaendig einen WhatsApp-QR-Code.</li>
+                        <li>Scanne den QR-Code mit WhatsApp auf dem Handy, um die Session zu koppeln.</li>
+                        <li>Nach erfolgreicher Verbindung kannst du ueber <code>whatsapp-bridge.0.sendMessage</code> oder <code>sendTo(...)</code> senden.</li>
+                        <li>Wenn keine Nummer im Script mitgegeben wird, nutzt der Adapter die Standard-Zielnummer von oben.</li>
+                        <li>Wenn Chromium/Puppeteer in deinem ioBroker-Container an einem Sonderpfad liegt, kannst du ihn oben explizit setzen.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

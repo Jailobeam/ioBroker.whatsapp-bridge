@@ -1,0 +1,44 @@
+* {
+    box-sizing: border-box;
+}
+
+.m {
+    overflow: initial;
+}
+
+.runtime-panel {
+    min-height: 100%;
+}
+
+.action-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.action-result {
+    margin-top: 12px;
+    color: #1565c0;
+}
+
+.qr-container {
+    min-height: 340px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    border: 1px solid #d9e1ea;
+    border-radius: 12px;
+    background: #fafcff;
+}
+
+.qr-container svg,
+.qr-container img {
+    max-width: 100%;
+    height: auto;
+}
+
+.checkbox-field {
+    margin-top: 24px;
+}
