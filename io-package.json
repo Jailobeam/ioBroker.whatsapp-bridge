@@ -4,8 +4,8 @@
     "version": "0.0.1",
     "news": {
       "0.0.1": {
-        "en": "Initial release with integrated WhatsApp Web session, QR login and direct sending",
-        "de": "Erste Version mit integrierter WhatsApp-Web-Session, QR-Login und direktem Versand"
+        "en": "Initial release with a lightweight ioBroker adapter that talks to a separate WhatsApp bridge service",
+        "de": "Erste Version mit einem schlanken ioBroker-Adapter, der mit einem separaten WhatsApp-Bridge-Dienst spricht"
       }
     },
     "title": "WhatsApp Bridge",
@@ -14,8 +14,8 @@
       "de": "WhatsApp Bridge"
     },
     "desc": {
-      "en": "Direct WhatsApp Web adapter with integrated QR login for ioBroker",
-      "de": "Direkter WhatsApp-Web-Adapter mit integriertem QR-Login fuer ioBroker"
+      "en": "Lightweight ioBroker adapter for a separate WhatsApp bridge service",
+      "de": "Schlanker ioBroker-Adapter fuer einen separaten WhatsApp-Bridge-Dienst"
     },
     "authors": [
       "Jailobeam"
@@ -51,11 +51,10 @@
     ]
   },
   "native": {
+    "serverUrl": "",
     "defaultPhone": "",
-    "clientId": "main",
-    "sessionPath": "",
-    "chromiumPath": "",
-    "autoStart": true
+    "apiToken": "",
+    "requestTimeout": 10000
   },
   "objects": [],
   "instanceObjects": [

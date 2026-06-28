@@ -13,8 +13,6 @@
     <script type="text/javascript" src="words.js"></script>
 
     <script type="text/javascript">
-        let refreshTimer = null;
-
         function adapterNamespace() {
             const adapterName = typeof adapter === 'string' && adapter ? adapter : 'whatsapp-bridge';
             const instanceId = String(instance || '0');
@@ -27,24 +25,14 @@
             });
         }
 
-        function setCommand(stateId, value, successMessage) {
-            socket.emit('setState', `${adapterNamespace()}.${stateId}`, { val: value, ack: false }, function () {
-                $('#actionResult').text(successMessage || '');
-                window.setTimeout(refreshRuntimeStatus, 800);
-            });
-        }
-
-        function renderQr(status, qrSvg) {
-            const target = $('#qrContainer');
-            if (status === 'ready') {
-                target.html('<p>WhatsApp ist verbunden. Es wird aktuell kein QR-Code angezeigt.</p>');
-                return;
-            }
-            if (qrSvg) {
-                target.html(qrSvg);
-                return;
-            }
-            target.html('<p>Der Adapter initialisiert gerade die WhatsApp-Session oder erzeugt einen neuen QR-Code.</p>');
+        function renderStatus(values) {
+            $('#bridgeState').text(values['status.state'] || '-');
+            $('#bridgeAccount').text(values['status.account'] || '-');
+            $('#bridgeReady').text(values['status.lastReadyAt'] || '-');
+            $('#bridgeEvent').text(values['status.lastEventAt'] || '-');
+            $('#bridgeError').text(values['status.lastError'] || '-');
+            $('#bridgeQr').text(values['status.hasQr'] ? 'Ja' : 'Nein');
+            $('#bridgeAuth').text(values['status.authEnabled'] ? 'Ja' : 'Nein');
         }
 
         function refreshRuntimeStatus() {
@@ -52,10 +40,11 @@
             const stateIds = [
                 'status.state',
                 'status.account',
-                'status.lastError',
                 'status.lastReadyAt',
                 'status.lastEventAt',
-                'status.qrSvg',
+                'status.lastError',
+                'status.hasQr',
+                'status.authEnabled'
             ];
 
             let pending = stateIds.length;
@@ -64,12 +53,7 @@
                     values[id] = value;
                     pending--;
                     if (pending === 0) {
-                        $('#waState').text(values['status.state'] || '-');
-                        $('#waAccount').text(values['status.account'] || '-');
-                        $('#waReady').text(values['status.lastReadyAt'] || '-');
-                        $('#waEvent').text(values['status.lastEventAt'] || '-');
-                        $('#waError').text(values['status.lastError'] || '-');
-                        renderQr(values['status.state'], values['status.qrSvg']);
+                        renderStatus(values);
                     }
                 });
             });
@@ -90,18 +74,14 @@
                 }
             });
 
-            $('#logoutButton').on('click', function () {
-                if (window.confirm('Wirklich WhatsApp abmelden und die Session loeschen?')) {
-                    setCommand('control.logout', true, 'Logout wurde an den Adapter gesendet.');
-                }
-            });
-
-            $('#restartButton').on('click', function () {
-                setCommand('control.reinitialize', true, 'Neustart wurde an den Adapter gesendet.');
+            $('#refreshButton').on('click', function () {
+                socket.emit('setState', `${adapterNamespace()}.control.refreshStatus`, { val: true, ack: false }, function () {
+                    $('#actionResult').text('Bridge-Status wird aktualisiert...');
+                    setTimeout(refreshRuntimeStatus, 1200);
+                });
             });
 
             refreshRuntimeStatus();
-            refreshTimer = window.setInterval(refreshRuntimeStatus, 5000);
             onChange(false);
             M && M.updateTextFields();
         }
@@ -111,11 +91,7 @@
             $('.value').each(function () {
                 const $field = $(this);
                 const id = $field.attr('id');
-                if ($field.attr('type') === 'checkbox') {
-                    obj[id] = $field.prop('checked');
-                } else {
-                    obj[id] = $field.val();
-                }
+                obj[id] = $field.attr('type') === 'checkbox' ? $field.prop('checked') : $field.val();
             });
             callback(obj);
         }
@@ -129,72 +105,60 @@
             </div>
             <div class="col s12 m8 l10">
                 <h4>WhatsApp Bridge</h4>
-                <p>Dieser Adapter verbindet ioBroker direkt mit einer WhatsApp-Web-Session. Es gibt keinen separaten Bridge-Server mehr.</p>
+                <p>Dieser Adapter ist die schlanke ioBroker-Seite. Die eigentliche WhatsApp-Engine laeuft auf deinem separaten Linux-Bridge-Dienst.</p>
             </div>
         </div>
 
         <div class="row">
             <div class="col l4 m6 s12 input-field">
+                <input class="value" type="text" id="serverUrl" />
+                <label for="serverUrl">Bridge-Server-URL</label>
+            </div>
+            <div class="col l4 m6 s12 input-field">
                 <input class="value" type="text" id="defaultPhone" />
                 <label for="defaultPhone">Standard-Zielnummer</label>
             </div>
             <div class="col l4 m6 s12 input-field">
-                <input class="value" type="text" id="clientId" />
-                <label for="clientId">Client-ID</label>
+                <input class="value" type="password" id="apiToken" />
+                <label for="apiToken">Bearer-Token</label>
             </div>
             <div class="col l4 m6 s12 input-field">
-                <input class="value" type="text" id="sessionPath" />
-                <label for="sessionPath">Session-Pfad (optional)</label>
-            </div>
-            <div class="col l4 m6 s12 input-field">
-                <input class="value" type="text" id="chromiumPath" />
-                <label for="chromiumPath">Chromium/Puppeteer-Pfad (optional)</label>
-            </div>
-            <div class="col l4 m6 s12 input-field checkbox-field">
-                <label>
-                    <input class="value" type="checkbox" id="autoStart" />
-                    <span>WhatsApp beim Adapterstart automatisch verbinden</span>
-                </label>
+                <input class="value" type="number" id="requestTimeout" />
+                <label for="requestTimeout">Request-Timeout (ms)</label>
             </div>
         </div>
 
         <div class="row">
             <div class="col s12 l6">
                 <div class="card-panel runtime-panel">
-                    <h5>Live-Status</h5>
-                    <p><strong>Status:</strong> <span id="waState">-</span></p>
-                    <p><strong>Account:</strong> <span id="waAccount">-</span></p>
-                    <p><strong>Letztes Ready:</strong> <span id="waReady">-</span></p>
-                    <p><strong>Letztes Event:</strong> <span id="waEvent">-</span></p>
-                    <p><strong>Letzter Fehler:</strong> <span id="waError">-</span></p>
+                    <h5>Bridge-Status</h5>
+                    <p><strong>Status:</strong> <span id="bridgeState">-</span></p>
+                    <p><strong>Account:</strong> <span id="bridgeAccount">-</span></p>
+                    <p><strong>Letztes Ready:</strong> <span id="bridgeReady">-</span></p>
+                    <p><strong>Letztes Event:</strong> <span id="bridgeEvent">-</span></p>
+                    <p><strong>Letzter Fehler:</strong> <span id="bridgeError">-</span></p>
+                    <p><strong>QR aktiv:</strong> <span id="bridgeQr">-</span></p>
+                    <p><strong>Token gesetzt:</strong> <span id="bridgeAuth">-</span></p>
                     <div class="action-row">
-                        <a class="waves-effect waves-light btn" id="restartButton">QR / Client neu starten</a>
-                        <a class="waves-effect waves-light btn red" id="logoutButton">WhatsApp abmelden</a>
+                        <a class="waves-effect waves-light btn" id="refreshButton">Status aktualisieren</a>
                     </div>
                     <p id="actionResult" class="action-result"></p>
                 </div>
             </div>
             <div class="col s12 l6">
                 <div class="card-panel runtime-panel">
-                    <h5>QR-Code</h5>
-                    <div id="qrContainer" class="qr-container">
-                        <p>QR-Code wird geladen...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col s12">
-                <div class="card-panel runtime-panel">
                     <h5>Verwendung</h5>
                     <ul class="browser-default">
-                        <li>Nach dem Speichern der Instanz erzeugt der Adapter selbststaendig einen WhatsApp-QR-Code.</li>
-                        <li>Scanne den QR-Code mit WhatsApp auf dem Handy, um die Session zu koppeln.</li>
-                        <li>Nach erfolgreicher Verbindung kannst du ueber <code>whatsapp-bridge.0.sendMessage</code> oder <code>sendTo(...)</code> senden.</li>
-                        <li>Wenn keine Nummer im Script mitgegeben wird, nutzt der Adapter die Standard-Zielnummer von oben.</li>
-                        <li>Wenn Chromium/Puppeteer in deinem ioBroker-Container an einem Sonderpfad liegt, kannst du ihn oben explizit setzen.</li>
+                        <li>Trage hier die Basis-URL deines Linux-Bridge-Servers ein, zum Beispiel <code>http://192.168.179.76:3008</code>.</li>
+                        <li>Den Bearer-Token erzeugst und verwaltest du direkt in der Bridge-Weboberflaeche.</li>
+                        <li>Wenn im Script keine Telefonnummer mitgegeben wird, nutzt der Adapter die Standard-Zielnummer von oben.</li>
+                        <li>Die QR-Anmeldung und das WhatsApp-Logout machst du direkt auf der Bridge, nicht im Adapter.</li>
                     </ul>
+                    <p>Script-Beispiel:</p>
+                    <pre>sendTo('whatsapp-bridge.0', 'send', {
+    text: 'Testnachricht',
+    phone: '+491234567890'
+});</pre>
                 </div>
             </div>
         </div>

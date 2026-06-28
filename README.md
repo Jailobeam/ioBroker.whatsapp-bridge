@@ -1,26 +1,23 @@
 ![Logo](admin/whatsapp-bridge.png)
 # ioBroker.whatsapp-bridge
 
-`ioBroker.whatsapp-bridge` is a standalone adapter that connects ioBroker directly to a WhatsApp Web session.
+`ioBroker.whatsapp-bridge` is a lightweight adapter that sends WhatsApp messages through your own separate bridge service.
 
-There is no separate HTTP bridge server in this adapter. The WhatsApp login, QR handling, session persistence and message sending all happen inside the adapter itself.
+The ioBroker adapter stays small and low on resources. The actual WhatsApp Web session, QR login and browser overhead run on a dedicated Linux bridge service instead of inside ioBroker itself.
 
-## Features
+## Architecture
 
-- direct WhatsApp Web integration inside the adapter
-- QR code display in the admin UI
-- persistent session via `LocalAuth`
-- send messages through `sendTo(...)`
-- send messages by writing text into `whatsapp-bridge.0.sendMessage`
-- logout and client restart from the admin UI
+- `ioBroker.whatsapp-bridge`: small adapter inside ioBroker
+- separate Linux bridge service: WhatsApp Web session, QR login, reconnect, logout
+
+This keeps Chromium/Puppeteer and WhatsApp runtime load out of the ioBroker host.
 
 ## Configuration
 
+- `Bridge-Server-URL`: base URL of your Linux bridge, for example `http://192.168.179.76:3008`
 - `Standard-Zielnummer`: fallback phone number if no recipient is passed in `sendTo(...)`
-- `Client-ID`: WhatsApp client profile identifier, useful if you want to separate multiple sessions
-- `Session-Pfad`: optional custom directory for the stored WhatsApp session
-- `Chromium/Puppeteer-Pfad`: optional path if Chromium is installed in a non-standard place
-- `WhatsApp beim Adapterstart automatisch verbinden`: starts the WhatsApp client automatically after the adapter starts
+- `Bearer-Token`: API token created in the bridge web UI
+- `Request-Timeout`: timeout for bridge HTTP requests in milliseconds
 
 ## Usage
 
@@ -32,7 +29,7 @@ Write text to:
 whatsapp-bridge.0.sendMessage
 ```
 
-The adapter will send it to the configured default phone number.
+The adapter sends the message to the configured default phone number through the bridge service.
 
 ### Script based
 
@@ -45,20 +42,16 @@ sendTo('whatsapp-bridge.0', 'send', {
 
 If `phone` is omitted, the adapter uses the configured default number.
 
-## Admin UI
+### Status
 
-The admin page shows:
+The adapter regularly reads the bridge health endpoint and exposes:
 
-- current WhatsApp state
+- bridge state
 - connected account
-- last error
-- live QR code when pairing is required
-
-From the same UI you can:
-
-- restart the WhatsApp client
-- log out and clear the stored session
+- last ready timestamp
+- last bridge error
+- whether a QR code is currently active
 
 ## Important Note
 
-This adapter uses an unofficial WhatsApp Web automation library. Changes on WhatsApp's side can temporarily break login or sending behavior.
+The bridge service itself must already be running on Linux. QR login, WhatsApp logout and token generation are handled there, not inside the adapter.
