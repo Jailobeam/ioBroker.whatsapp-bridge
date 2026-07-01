@@ -1,0 +1,61 @@
+{
+  "name": "iobroker.whatsapp-bridge",
+  "version": "0.0.4",
+  "description": "Lightweight ioBroker adapter for a separate WhatsApp bridge service",
+  "author": {
+    "name": "Jailobeam"
+  },
+  "homepage": "https://github.com/Jailobeam/ioBroker.whatsapp-bridge",
+  "license": "MIT",
+  "keywords": [
+    "iobroker",
+    "whatsapp",
+    "notifications"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jailobeam/ioBroker.whatsapp-bridge"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@iobroker/adapter-core": "^3.1.6"
+  },
+  "devDependencies": {
+    "@alcalzone/release-script": "^3.8.0",
+    "@alcalzone/release-script-plugin-iobroker": "^3.7.2",
+    "@alcalzone/release-script-plugin-license": "^3.7.0",
+    "@iobroker/adapter-dev": "^1.5.0",
+    "@iobroker/testing": "^4.1.3",
+    "@types/chai": "^4.3.16",
+    "@types/chai-as-promised": "^7.1.8",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.14.9",
+    "@types/proxyquire": "^1.3.31",
+    "@types/sinon": "^10.0.20",
+    "@types/sinon-chai": "^3.2.12",
+    "chai": "^4.5.0",
+    "chai-as-promised": "^7.1.2",
+    "eslint": "^8.57.0",
+    "mocha": "^10.4.0",
+    "proxyquire": "^2.1.3",
+    "sinon": "^18.0.0",
+    "sinon-chai": "^3.7.0"
+  },
+  "main": "main.js",
+  "scripts": {
+    "test:js": "mocha \"{!(node_modules|test)/**/*.test.js,*.test.js,test/**/test!(PackageFiles|Startup).js}\"",
+    "test:package": "mocha test/package --exit",
+    "test:unit": "mocha test/unit --exit",
+    "test:integration": "mocha test/integration --exit",
+    "test": "npm run test:package",
+    "lint": "eslint",
+    "release": "release-script",
+    "translate": "translate-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/Jailobeam/ioBroker.whatsapp-bridge/issues"
+  },
+  "readmeFilename": "README.md"
+}

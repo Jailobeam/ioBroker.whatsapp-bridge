@@ -1,0 +1,418 @@
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="../../css/adapter.css" />
+    <link rel="stylesheet" type="text/css" href="../../lib/css/materialize.css">
+
+    <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript" src="../../socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="../../js/translate.js"></script>
+    <script type="text/javascript" src="../../lib/js/materialize.js"></script>
+    <script type="text/javascript" src="../../js/adapter-settings.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="style.css?v=20260701d" />
+    <script type="text/javascript" src="words.js"></script>
+
+    <script type="text/javascript">
+        let currentOnChange = () => {};
+        let contactRows = [];
+
+        function adapterNamespace() {
+            const adapterName = typeof adapter === 'string' && adapter ? adapter : 'whatsapp-bridge';
+            const instanceId = String(instance || '0');
+            return instanceId.includes('.') ? instanceId : `${adapterName}.${instanceId}`;
+        }
+
+        function normalizePhoneKey(phone) {
+            return String(phone || '').replace(/[^\d]/g, '');
+        }
+
+        function formatPhoneForSave(phone) {
+            const raw = String(phone || '').trim();
+            const key = normalizePhoneKey(raw);
+            if (!key) {
+                return '';
+            }
+
+            return raw.startsWith('+') ? raw : `+${key}`;
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function normalizeContact(contact) {
+            const source = typeof contact === 'object' && contact !== null ? contact : { phone: contact };
+            const phone = formatPhoneForSave(source.phone || source.number || '');
+            const key = normalizePhoneKey(phone);
+            if (!key) {
+                return null;
+            }
+
+            return {
+                name: String(source.name || '').trim(),
+                phone,
+                key,
+            };
+        }
+
+        function dedupeContacts(entries) {
+            const normalizedContacts = [];
+            const seen = new Set();
+
+            entries.forEach(entry => {
+                const normalized = normalizeContact(entry);
+                if (!normalized || seen.has(normalized.key)) {
+                    return;
+                }
+
+                seen.add(normalized.key);
+                normalizedContacts.push({
+                    name: normalized.name,
+                    phone: normalized.phone,
+                });
+            });
+
+            return normalizedContacts;
+        }
+
+        function parseLegacyContacts(settings) {
+            const entries = [];
+            const defaultPhone = String(settings.defaultPhone || '').trim();
+            if (defaultPhone) {
+                entries.push({
+                    name: 'Hauptkontakt',
+                    phone: defaultPhone,
+                });
+            }
+
+            String(settings.phoneTargets || '')
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(Boolean)
+                .forEach(phone => entries.push({ name: '', phone }));
+
+            return dedupeContacts(entries);
+        }
+
+        function parseConfiguredContacts(settings) {
+            if (Array.isArray(settings.contacts)) {
+                return dedupeContacts(settings.contacts);
+            }
+
+            if (typeof settings.contacts === 'string' && settings.contacts.trim()) {
+                try {
+                    const parsed = JSON.parse(settings.contacts);
+                    if (Array.isArray(parsed)) {
+                        return dedupeContacts(parsed);
+                    }
+                } catch {
+                    // Ignore invalid legacy JSON strings and fall back to old fields.
+                }
+            }
+
+            return parseLegacyContacts(settings);
+        }
+
+        function getStateValue(stateId, callback) {
+            socket.emit('getState', `${adapterNamespace()}.${stateId}`, function (_err, state) {
+                callback(state && state.val != null ? state.val : '');
+            });
+        }
+
+        function renderStatus(values) {
+            $('.bridge-state-value').text(values['status.state'] || '-');
+            $('.bridge-account-value').text(values['status.account'] || '-');
+            $('#bridgeReady').text(values['status.lastReadyAt'] || '-');
+            $('#bridgeEvent').text(values['status.lastEventAt'] || '-');
+            $('#bridgeError').text(values['status.lastError'] || '-');
+            $('#bridgeQr').text(values['status.hasQr'] ? 'Ja' : 'Nein');
+            $('#bridgeAuth').text(values['status.authEnabled'] ? 'Ja' : 'Nein');
+        }
+
+        function refreshRuntimeStatus() {
+            const values = {};
+            const stateIds = [
+                'status.state',
+                'status.account',
+                'status.lastReadyAt',
+                'status.lastEventAt',
+                'status.lastError',
+                'status.hasQr',
+                'status.authEnabled'
+            ];
+
+            let pending = stateIds.length;
+            stateIds.forEach(id => {
+                getStateValue(id, value => {
+                    values[id] = value;
+                    pending--;
+                    if (pending === 0) {
+                        renderStatus(values);
+                    }
+                });
+            });
+        }
+
+        function contactPreview(contact) {
+            const key = normalizePhoneKey(contact.phone);
+            return key ? `whatsapp-bridge.0.sendMessage.${key}` : 'Noch keine gueltige Nummer';
+        }
+
+        function renderContacts() {
+            const $tbody = $('#contactsTableBody');
+            $tbody.empty();
+
+            if (!contactRows.length) {
+                $tbody.append(`
+                    <tr class="contacts-empty-row">
+                        <td colspan="4">Noch kein Kontakt eingetragen. Lege hier die Empfaenger fuer deine WhatsApp-Nachrichten an.</td>
+                    </tr>
+                `);
+                $('#contactsCount').text('0 Kontakte');
+                return;
+            }
+
+            contactRows.forEach((contact, index) => {
+                const nameValue = escapeHtml(contact.name || '');
+                const phoneValue = escapeHtml(contact.phone || '');
+                const previewValue = escapeHtml(contactPreview(contact));
+
+                $tbody.append(`
+                    <tr data-index="${index}">
+                        <td>
+                            <input type="text" class="contact-name browser-default" value="${nameValue}" />
+                        </td>
+                        <td>
+                            <input type="text" class="contact-phone browser-default" value="${phoneValue}" />
+                        </td>
+                        <td class="contact-preview-cell">
+                            <code>${previewValue}</code>
+                        </td>
+                        <td class="contact-action-cell">
+                            <button type="button" class="contact-remove btn-flat" title="Kontakt entfernen">Entfernen</button>
+                        </td>
+                    </tr>
+                `);
+            });
+
+            $('#contactsCount').text(`${contactRows.length} Kontakte`);
+
+            $tbody.find('.contact-name').on('input', function () {
+                const index = Number($(this).closest('tr').data('index'));
+                contactRows[index].name = $(this).val();
+                currentOnChange();
+            });
+
+            $tbody.find('.contact-phone').on('input', function () {
+                const $row = $(this).closest('tr');
+                const index = Number($row.data('index'));
+                contactRows[index].phone = $(this).val();
+                $row.find('.contact-preview-cell code').text(contactPreview(contactRows[index]));
+                currentOnChange();
+            });
+
+            $tbody.find('.contact-remove').on('click', function () {
+                const index = Number($(this).closest('tr').data('index'));
+                contactRows.splice(index, 1);
+                currentOnChange();
+                renderContacts();
+            });
+        }
+
+        function addContact(contact = { name: '', phone: '' }) {
+            contactRows.push({
+                name: String(contact.name || ''),
+                phone: String(contact.phone || ''),
+            });
+            currentOnChange();
+            renderContacts();
+        }
+
+        function load(settings, onChange) {
+            if (!settings) {
+                return;
+            }
+
+            currentOnChange = onChange;
+
+            $('#serverUrl').val(settings.serverUrl || '');
+            $('#requestTimeout').val(settings.requestTimeout || 10000);
+            $('#apiToken').val(settings.apiToken || '');
+            contactRows = parseConfiguredContacts(settings);
+
+            $('#serverUrl, #requestTimeout').on('input change', () => onChange());
+
+            $('#refreshButton').on('click', function () {
+                socket.emit('setState', `${adapterNamespace()}.control.refreshStatus`, { val: true, ack: false }, function () {
+                    $('#actionResult').text('Bridge-Status wird aktualisiert...');
+                    setTimeout(refreshRuntimeStatus, 1200);
+                });
+            });
+
+            $('#pairButton').on('click', function () {
+                const serverUrl = ($('#serverUrl').val() || '').trim();
+                const pairingCode = ($('#pairingCode').val() || '').trim();
+
+                if (!serverUrl) {
+                    $('#pairResult').text('Bitte zuerst die Bridge-Server-URL eintragen.');
+                    return;
+                }
+
+                if (!pairingCode) {
+                    $('#pairResult').text('Bitte den Kopplungscode aus der Bridge eintragen.');
+                    return;
+                }
+
+                $('#pairResult').text('Bridge wird gekoppelt...');
+                socket.emit('sendTo', adapterNamespace(), 'pair', {
+                    serverUrl,
+                    code: pairingCode
+                }, function (response) {
+                    const result = response && response.error == null && response.result == null && response.token == null
+                        ? response.message || response
+                        : response;
+
+                    if (!result || result.error) {
+                        $('#pairResult').text(`Fehler: ${(result && result.error) || 'Kopplung fehlgeschlagen'}`);
+                        return;
+                    }
+
+                    $('#apiToken').val(result.token || '');
+                    $('#pairingCode').val('');
+                    $('#pairResult').text('Kopplung erfolgreich. Bitte jetzt noch speichern.');
+                    onChange();
+                    refreshRuntimeStatus();
+                });
+            });
+
+            $('#addContactButton').on('click', function () {
+                addContact();
+            });
+
+            renderContacts();
+            refreshRuntimeStatus();
+            if (typeof M !== 'undefined' && M.updateTextFields) {
+                M.updateTextFields();
+            }
+            onChange(false);
+        }
+
+        function save(callback) {
+            callback({
+                serverUrl: ($('#serverUrl').val() || '').trim(),
+                requestTimeout: ($('#requestTimeout').val() || '').trim(),
+                apiToken: ($('#apiToken').val() || '').trim(),
+                contacts: dedupeContacts(contactRows),
+                defaultPhone: '',
+                phoneTargets: '',
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="m adapter-container wb-page">
+        <input type="hidden" id="apiToken" />
+
+        <div class="row wb-row">
+            <div class="col s12 l7">
+                <div class="wb-section">
+                    <div class="wb-panel-header">
+                        <div class="wb-title">Bridge koppeln</div>
+                    </div>
+                    <div class="row">
+                        <div class="input-field col s12 m8">
+                            <input type="text" id="serverUrl" class="wb-main-input" />
+                            <label for="serverUrl">Bridge-Server-URL</label>
+                        </div>
+                        <div class="input-field col s12 m4">
+                            <input type="number" id="requestTimeout" class="wb-main-input" />
+                            <label for="requestTimeout">Request-Timeout (ms)</label>
+                        </div>
+                    </div>
+                    <div class="row wb-pair-row">
+                        <div class="input-field col s12 m8 l9">
+                            <input type="text" id="pairingCode" class="wb-main-input" />
+                            <label for="pairingCode">Kopplungscode aus der Bridge</label>
+                        </div>
+                        <div class="col s12 m4 l3 wb-button-col">
+                            <button type="button" class="btn waves-effect waves-light wb-action-button" id="pairButton">Bridge koppeln</button>
+                        </div>
+                    </div>
+                    <p class="wb-help-text">Den Code erzeugst du direkt in der Bridge-Weboberflaeche. Nach erfolgreicher Kopplung wird intern ein Zugriffstoken gespeichert.</p>
+                    <p id="pairResult" class="wb-result-text"></p>
+                </div>
+            </div>
+
+            <div class="col s12 l5">
+                <div class="wb-section">
+                    <div class="wb-panel-header wb-panel-header-inline">
+                        <div class="wb-title">Bridge-Status</div>
+                        <button type="button" class="btn-flat wb-flat-button" id="refreshButton">Aktualisieren</button>
+                    </div>
+                    <div class="wb-status-table">
+                        <div class="wb-status-row"><span>Status</span><strong class="bridge-state-value">-</strong></div>
+                        <div class="wb-status-row"><span>Account</span><strong class="bridge-account-value">-</strong></div>
+                        <div class="wb-status-row"><span>Letztes Ready</span><strong id="bridgeReady">-</strong></div>
+                        <div class="wb-status-row"><span>Letztes Event</span><strong id="bridgeEvent">-</strong></div>
+                        <div class="wb-status-row"><span>QR aktiv</span><strong id="bridgeQr">-</strong></div>
+                        <div class="wb-status-row"><span>Adapter gekoppelt</span><strong id="bridgeAuth">-</strong></div>
+                    </div>
+                    <div class="wb-error-box">
+                        <div class="wb-error-label">Letzter Fehler</div>
+                        <div id="bridgeError">-</div>
+                    </div>
+                    <p id="actionResult" class="wb-result-text"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row wb-row">
+            <div class="col s12">
+                <div class="wb-section">
+                    <div class="wb-panel-header wb-panel-header-inline">
+                        <div class="wb-title">Kontaktliste</div>
+                        <div class="wb-contact-actions">
+                            <span class="wb-count-chip" id="contactsCount">0 Kontakte</span>
+                            <button type="button" class="btn waves-effect waves-light wb-action-button" id="addContactButton">Kontakt hinzufuegen</button>
+                        </div>
+                    </div>
+
+                    <div class="wb-table-wrap">
+                        <table class="striped wb-contacts-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>WhatsApp-Nummer</th>
+                                    <th>Objekt in ioBroker</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactsTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <p class="wb-help-text">Die States werden unter <code>whatsapp-bridge.0.sendMessage.&lt;nummer&gt;</code> angelegt. Der Kontaktname wird dabei als lesbarer Anzeigename im Objekt hinterlegt.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row wb-row">
+            <div class="col s12">
+                <div class="wb-section wb-section-note">
+                    <div class="wb-title">Hinweise</div>
+                    <ul class="wb-note-list">
+                        <li>Bridge-URL eintragen, Kopplungscode aus der Linux-Bridge einfuegen und speichern.</li>
+                        <li>Kontakte mit Name und Nummer anlegen. Danach erscheinen eigene States unter <code>sendMessage.*</code>.</li>
+                        <li>QR-Anmeldung und WhatsApp-Logout laufen weiterhin direkt auf der Bridge.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

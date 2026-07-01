@@ -1,0 +1,82 @@
+{
+  "common": {
+    "name": "whatsapp-bridge",
+    "version": "0.0.4",
+    "news": {
+      "0.0.4": {
+        "en": "Added a contact table with names instead of the old default-phone layout",
+        "de": "Kontakt-Tabelle mit Namen statt der alten Standardnummern-Oberflaeche hinzugefuegt"
+      },
+      "0.0.3": {
+        "en": "Replaced manual bearer token handling with one-time bridge pairing codes",
+        "de": "Manuelle Bearer-Token-Eingabe durch einmalige Bridge-Kopplungscodes ersetzt"
+      },
+      "0.0.2": {
+        "en": "Added multiple configurable target numbers with dedicated send states under sendMessage",
+        "de": "Mehrere konfigurierbare Zielnummern mit eigenen Sende-States unter sendMessage hinzugefuegt"
+      },
+      "0.0.1": {
+        "en": "Initial release with a lightweight ioBroker adapter that talks to a separate WhatsApp bridge service",
+        "de": "Erste Version mit einem schlanken ioBroker-Adapter, der mit einem separaten WhatsApp-Bridge-Dienst spricht"
+      }
+    },
+    "title": "WhatsApp Bridge",
+    "titleLang": {
+      "en": "WhatsApp Bridge",
+      "de": "WhatsApp Bridge"
+    },
+    "desc": {
+      "en": "Lightweight ioBroker adapter for a separate WhatsApp bridge service",
+      "de": "Schlanker ioBroker-Adapter fuer einen separaten WhatsApp-Bridge-Dienst"
+    },
+    "authors": [
+      "Jailobeam"
+    ],
+    "keywords": [
+      "whatsapp",
+      "notifications"
+    ],
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free"
+    },
+    "platform": "Javascript/Node.js",
+    "main": "main.js",
+    "icon": "whatsapp-bridge.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/Jailobeam/ioBroker.whatsapp-bridge/master/admin/whatsapp-bridge.png",
+    "readme": "https://github.com/Jailobeam/ioBroker.whatsapp-bridge/blob/master/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "messaging",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "tier": 1,
+    "messagebox": true,
+    "materialize": true,
+    "blockly": false,
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.19"
+      }
+    ]
+  },
+  "native": {
+    "serverUrl": "",
+    "contacts": [],
+    "apiToken": "",
+    "requestTimeout": 10000
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "sendMessage",
+      "type": "channel",
+      "common": {
+        "name": "Send messages"
+      },
+      "native": {}
+    }
+  ]
+}
